@@ -1,95 +1,109 @@
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-
-// Set up Three.js scene
+// Create the scene, camera, and renderer for Three.js
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ canvas: canvas });
+const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Player setup
-let player1, player2;
-let arrowObjects = [];
+// Set the camera position
+camera.position.z = 5;
+
+// Create player objects (simple cubes)
+const players = {
+  1: createPlayer(0x0000ff, { x: -3, y: 1, z: 0 }), // Player 1 (Blue)
+  2: createPlayer(0xff0000, { x: 3, y: 1, z: 0 }),  // Player 2 (Red)
+};
+
+// Create arrows array
 let arrows = [];
 
-// Create player (simple cubes for now)
+// Function to create a player
 function createPlayer(color, position) {
-    const geometry = new THREE.BoxGeometry(0.5, 1.5, 0.5);
-    const material = new THREE.MeshBasicMaterial({ color: color });
-    const player = new THREE.Mesh(geometry, material);
-    player.position.set(position.x, position.y, position.z);
-    scene.add(player);
-    return player;
+  const geometry = new THREE.BoxGeometry(0.5, 1.5, 0.5);
+  const material = new THREE.MeshBasicMaterial({ color: color });
+  const player = new THREE.Mesh(geometry, material);
+  player.position.set(position.x, position.y, position.z);
+  scene.add(player);
+  return player;
 }
 
-player1 = createPlayer(0x0000ff, { x: -5, y: 1, z: 0 });
-player2 = createPlayer(0xff0000, { x: 5, y: 1, z: 0 });
-
-// Arrow creation (simple cylinder for now)
-function createArrow(owner, direction, position) {
-    const geometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 16);
-    const material = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const arrow = new THREE.Mesh(geometry, material);
-    arrow.rotation.z = Math.PI / 2;
-    arrow.position.set(position.x, position.y, position.z);
-    arrow.owner = owner;
-    scene.add(arrow);
-    return arrow;
+// Function to create an arrow
+function createArrow(owner) {
+  const geometry = new THREE.CylinderGeometry(0.05, 0.05, 2);
+  const material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+  const arrow = new THREE.Mesh(geometry, material);
+  arrow.owner = owner;
+  scene.add(arrow);
+  arrows.push(arrow);
+  return arrow;
 }
 
-// Setup the socket connection
-const socket = io();
-
-// Listen for the shooting event
-socket.on('shoot', (data) => {
-    // Create an arrow for the other player
-    const arrow = createArrow(data.owner, data.direction, data.position);
-    arrows.push(arrow);
-});
-
-// Move the arrow based on its direction
+// Update arrows based on the owner
 function updateArrows() {
-    arrows.forEach((arrow, index) => {
-        if (arrow.owner === 1) {
-            arrow.position.x += 0.1;  // Move right for player 1
-        } else {
-            arrow.position.x -= 0.1;  // Move left for player 2
-        }
+  arrows.forEach((arrow, index) => {
+    if (arrow.owner === 1) {
+      arrow.position.x += 0.1; // Move right for player 1
+    } else {
+      arrow.position.x -= 0.1; // Move left for player 2
+    }
 
-        // Check for collision (simplified logic)
-        if (arrow.position.x > 5 || arrow.position.x < -5) {
-            scene.remove(arrow);  // Remove the arrow after it goes out of bounds
-            arrows.splice(index, 1);
-        }
-    });
+    // Remove arrows if they go off-screen
+    if (arrow.position.x > 10 || arrow.position.x < -10) {
+      scene.remove(arrow);
+      arrows.splice(index, 1);
+    }
+  });
 }
 
-// Handle key events (shooting arrows)
+// Shoot an arrow and save it to localStorage
+function shootArrow(playerId) {
+  const player = players[playerId];
+  const arrow = createArrow(playerId);
+  arrow.position.set(player.position.x, player.position.y, player.position.z);
+
+  // Save the arrow event to localStorage
+  const arrowsData = JSON.parse(localStorage.getItem('arrows')) || [];
+  arrowsData.push({ owner: playerId, position: arrow.position });
+  localStorage.setItem('arrows', JSON.stringify(arrowsData));
+}
+
+// Listen for keydown events to trigger shooting
 document.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {  // Player 1 shoots
-        shootArrow(player1, 'right');
-    }
-    if (event.key === 'Space') {  // Player 2 shoots
-        shootArrow(player2, 'left');
-    }
+  if (event.key === ' ') { // Spacebar to shoot for Player 1
+    shootArrow(1);
+  }
+  if (event.key === 'Enter') { // Enter to shoot for Player 2
+    shootArrow(2);
+  }
 });
 
-// Send shoot command to other player
-function shootArrow(owner, direction) {
-    const position = owner.position.clone();
-    socket.emit('shoot', { owner: owner === player1 ? 1 : 2, direction, position });
+// Sync arrows across tabs by listening for changes in localStorage
+function syncArrows() {
+  const storedArrows = JSON.parse(localStorage.getItem('arrows')) || [];
+  
+  storedArrows.forEach((arrowData) => {
+    const existingArrow = arrows.find((arrow) => {
+      return arrow.owner === arrowData.owner && arrow.position.equals(new THREE.Vector3(arrowData.position.x, arrowData.position.y, arrowData.position.z));
+    });
+    
+    if (!existingArrow) {
+      const newArrow = createArrow(arrowData.owner);
+      newArrow.position.set(arrowData.position.x, arrowData.position.y, arrowData.position.z);
+    }
+  });
 }
 
-// Camera movement
-camera.position.z = 10;
-
-// Game loop
+// Animation loop
 function animate() {
-    requestAnimationFrame(animate);
-    updateArrows();
-    renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+
+  // Update arrow positions and sync data
+  updateArrows();
+  syncArrows();
+
+  // Render the scene
+  renderer.render(scene, camera);
 }
 
-// Start the game loop
+// Start the animation loop
 animate();
