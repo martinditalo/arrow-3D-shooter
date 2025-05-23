@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Arrow 3D Shooter</title>
+    <title>Human Archery 3D</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -11,23 +11,40 @@
             left: 10px;
             color: white;
             font-family: Arial;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.7);
             padding: 10px;
             border-radius: 5px;
             z-index: 100;
         }
-        #shoot-btn {
+        #power-container {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 20px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            z-index: 100;
+            display: none;
+        }
+        #power-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(to right, #4CAF50, #FF5722);
+            border-radius: 10px;
+            transition: width 0.1s;
+        }
+        #instructions {
             position: absolute;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 10px 20px;
-            background: #4CAF50;
             color: white;
-            border: none;
+            font-family: Arial;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
             border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
             z-index: 100;
         }
     </style>
@@ -38,10 +55,14 @@
         <div>Player 1 Score: <span id="score1">0</span></div>
         <div>Player 2 Score: <span id="score2">0</span></div>
     </div>
-    <button id="shoot-btn">SHOOT ARROW</button>
+    <div id="power-container">
+        <div id="power-bar"></div>
+    </div>
+    <div id="instructions">Click and hold to draw bow, release to shoot</div>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
     <script src="app.js"></script>
+
 </body>
 </html>
