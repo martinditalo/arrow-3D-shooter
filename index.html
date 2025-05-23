@@ -61,7 +61,308 @@
     <div id="instructions">Click and hold to draw bow, release to shoot</div>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
-    <script src="app.js"></script>
+    <script>
+// ========== PHYSICS CONSTANTS ==========
+const GRAVITY = 0.001;
+const AIR_RESISTANCE = 0.0005;
+const ARROW_LIFT = 0.0002; // Slight upward force at launch
 
+// ========== SETUP ==========
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// Camera setup
+let currentCamera;
+const camera1 = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+const camera2 = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+
+// Lighting
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(0, 10, 5);
+light.castShadow = true;
+scene.add(light);
+scene.add(new THREE.AmbientLight(0x404040));
+
+// Ground
+const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(30, 30),
+    new THREE.MeshStandardMaterial({ color: 0x228B22 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ========== CHARACTERS ==========
+const createArcher = (color, xPos) => {
+    const group = new THREE.Group();
+    group.position.set(xPos, 0, 0);
+    
+    // Torso
+    const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 1.5, 0.4),
+        new THREE.MeshStandardMaterial({ color })
+    );
+    torso.position.y = 1;
+    torso.castShadow = true;
+    group.add(torso);
+    
+    // Head
+    const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 32, 32),
+        new THREE.MeshStandardMaterial({ color: 0xFFE0BD })
+    );
+    head.position.y = 1.8;
+    head.castShadow = true;
+    group.add(head);
+    
+    // Arms
+    const armGeo = new THREE.BoxGeometry(0.2, 0.8, 0.3);
+    const leftArm = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: 0xFFE0BD }));
+    leftArm.position.set(-0.5, 1.2, 0);
+    leftArm.castShadow = true;
+    group.add(leftArm);
+    
+    const rightArm = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: 0xFFE0BD }));
+    rightArm.position.set(0.5, 1.2, 0);
+    rightArm.castShadow = true;
+    group.add(rightArm);
+    
+    return group;
+};
+
+const createBow = (xPos) => {
+    const group = new THREE.Group();
+    group.position.set(xPos, 1.3, 0);
+    
+    // Bow curve
+    const bowCurve = new THREE.EllipseCurve(0, 0, 0.5, 1, 0, Math.PI, false, 0);
+    const bowPoints = bowCurve.getPoints(50);
+    const bowGeometry = new THREE.BufferGeometry().setFromPoints(bowPoints);
+    const bowLine = new THREE.Line(
+        bowGeometry,
+        new THREE.LineBasicMaterial({ color: 0x8B4513, linewidth: 3 })
+    );
+    bowLine.rotation.z = Math.PI/2;
+    group.add(bowLine);
+    
+    // Bow string
+    const stringGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0.5, 0),
+        new THREE.Vector3(0, -0.5, 0)
+    ]);
+    const stringMaterial = new THREE.LineBasicMaterial({ color: 0xFFFFFF });
+    const bowString = new THREE.Line(stringGeometry, stringMaterial);
+    group.add(bowString);
+    
+    return { group, string: bowString };
+};
+
+const player1 = createArcher(0xFF3333, -5);
+const player2 = createArcher(0x3333FF, 5);
+const bow1 = createBow(-4.5);
+const bow2 = createBow(4.5);
+scene.add(player1, player2, bow1.group, bow2.group);
+
+// ========== ARROW PHYSICS ==========
+const arrows = [];
+const createArrow = () => {
+    const group = new THREE.Group();
+    
+    // Shaft
+    const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8),
+        new THREE.MeshStandardMaterial({ color: 0x8B4513 })
+    );
+    shaft.position.y = 0.4;
+    shaft.rotation.z = Math.PI/2;
+    group.add(shaft);
+    
+    // Head
+    const head = new THREE.Mesh(
+        new THREE.ConeGeometry(0.05, 0.15, 16),
+        new THREE.MeshStandardMaterial({ color: 0x555555 })
+    );
+    head.position.set(0.4, 0.4, 0);
+    group.add(head);
+    
+    // Fletching
+    const fletching = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.15, 0.07),
+        new THREE.MeshStandardMaterial({ color: 0xff0000, side: THREE.DoubleSide })
+    );
+    fletching.position.set(-0.4, 0.4, 0);
+    fletching.rotation.z = Math.PI/2;
+    group.add(fletching);
+    
+    return {
+        obj: group,
+        velocity: new THREE.Vector3(),
+        rotation: new THREE.Euler()
+    };
+};
+
+// ========== GAME LOGIC ==========
+let currentPlayer = 1;
+let canShoot = true;
+let isDrawing = false;
+let drawStartTime = 0;
+let drawPower = 0;
+const maxPower = 100;
+const scores = [0, 0];
+
+// Set initial camera
+setCamera(currentPlayer);
+
+// Mouse controls
+document.addEventListener('mousedown', startDrawing);
+document.addEventListener('mouseup', releaseArrow);
+
+function setCamera(playerNum) {
+    if (playerNum === 1) {
+        camera1.position.set(-7, 2, 0);
+        camera1.lookAt(-5, 1.5, 0);
+        currentCamera = camera1;
+    } else {
+        camera2.position.set(7, 2, 0);
+        camera2.lookAt(5, 1.5, 0);
+        currentCamera = camera2;
+    }
+}
+
+function startDrawing(e) {
+    if (!canShoot || isDrawing) return;
+    e.preventDefault();
+    
+    isDrawing = true;
+    drawStartTime = Date.now();
+    document.getElementById('power-container').style.display = 'block';
+    
+    // Animate bow string
+    animateBowString();
+}
+
+function animateBowString() {
+    if (!isDrawing) return;
+    
+    const elapsed = Date.now() - drawStartTime;
+    drawPower = Math.min(maxPower, elapsed / 10);
+    document.getElementById('power-bar').style.width = `${drawPower}%`;
+    
+    // Pull bow string
+    const bow = currentPlayer === 1 ? bow1 : bow2;
+    const pullDistance = drawPower / 100 * 0.5;
+    bow.string.geometry.setFromPoints([
+        new THREE.Vector3(0, 0.5 - pullDistance, 0),
+        new THREE.Vector3(0, -0.5 + pullDistance, 0)
+    ]);
+    bow.string.geometry.attributes.position.needsUpdate = true;
+    
+    requestAnimationFrame(animateBowString);
+}
+
+function releaseArrow(e) {
+    if (!isDrawing) return;
+    e.preventDefault();
+    
+    isDrawing = false;
+    document.getElementById('power-container').style.display = 'none';
+    
+    // Reset bow string
+    const bow = currentPlayer === 1 ? bow1 : bow2;
+    bow.string.geometry.setFromPoints([
+        new THREE.Vector3(0, 0.5, 0),
+        new THREE.Vector3(0, -0.5, 0)
+    ]);
+    bow.string.geometry.attributes.position.needsUpdate = true;
+    
+    if (drawPower < 10) { // Minimum power
+        canShoot = true;
+        return;
+    }
+    
+    canShoot = false;
+    shootArrow(drawPower);
+}
+
+function shootArrow(power) {
+    const arrow = createArrow();
+    const baseSpeed = 0.1 + (power / maxPower * 0.3);
+    
+    if (currentPlayer === 1) {
+        arrow.obj.position.set(-4.5, 1.3, 0);
+        arrow.velocity.set(baseSpeed, ARROW_LIFT * power, 0); // Initial upward velocity
+    } else {
+        arrow.obj.position.set(4.5, 1.3, 0);
+        arrow.velocity.set(-baseSpeed, ARROW_LIFT * power, 0);
+    }
+    
+    scene.add(arrow.obj);
+    arrows.push(arrow);
+}
+
+function updateArrows() {
+    arrows.forEach((arrow, index) => {
+        // Apply physics
+        arrow.velocity.y -= GRAVITY; // Gravity
+        arrow.velocity.multiplyScalar(1 - AIR_RESISTANCE); // Air resistance
+        
+        // Update position
+        arrow.obj.position.x += arrow.velocity.x;
+        arrow.obj.position.y += arrow.velocity.y;
+        
+        // Rotate arrow based on trajectory
+        const angle = Math.atan2(arrow.velocity.y, Math.abs(arrow.velocity.x));
+        arrow.obj.rotation.z = (arrow.velocity.x > 0 ? Math.PI/2 : -Math.PI/2) + angle;
+        
+        // Check hit
+        const target = currentPlayer === 1 ? player2 : player1;
+        if (arrow.obj.position.distanceTo(target.position) < 1.5) {
+            scores[currentPlayer-1]++;
+            document.getElementById(`score${currentPlayer}`).textContent = scores[currentPlayer-1];
+            scene.remove(arrow.obj);
+            arrows.splice(index, 1);
+            switchPlayer();
+        }
+        
+        // Check out of bounds or hit ground
+        if (Math.abs(arrow.obj.position.x) > 15 || arrow.obj.position.y < 0) {
+            scene.remove(arrow.obj);
+            arrows.splice(index, 1);
+            switchPlayer();
+        }
+    });
+}
+
+function switchPlayer() {
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    document.getElementById('current-player').textContent = currentPlayer;
+    setCamera(currentPlayer);
+    
+    // Brief delay before allowing next shot
+    setTimeout(() => {
+        canShoot = true;
+    }, 1000);
+}
+
+// ========== ANIMATION LOOP ==========
+function animate() {
+    requestAnimationFrame(animate);
+    updateArrows();
+    renderer.render(scene, currentCamera);
+}
+animate();
+
+// Handle window resize
+window.addEventListener('resize', () => {
+    currentCamera.aspect = window.innerWidth / window.innerHeight;
+    currentCamera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+    </script>
 </body>
 </html>
