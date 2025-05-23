@@ -1,3 +1,7 @@
+// ========== PHYSICS CONSTANTS ==========
+const GRAVITY = 0.001;
+const AIR_RESISTANCE = 0.0005;
+const ARROW_LIFT = 0.0002; // Slight upward force at launch
 
 // ========== SETUP ==========
 const scene = new THREE.Scene();
@@ -17,31 +21,24 @@ const camera2 = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHe
 const light = new THREE.DirectionalLight(0xffffff, 1);
 light.position.set(0, 10, 5);
 light.castShadow = true;
-light.shadow.mapSize.width = 2048;
-light.shadow.mapSize.height = 2048;
 scene.add(light);
 scene.add(new THREE.AmbientLight(0x404040));
 
-// Ground with texture
-const groundTexture = new THREE.CanvasTexture(createGrassTexture());
+// Ground
 const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(30, 30),
-    new THREE.MeshStandardMaterial({ map: groundTexture })
+    new THREE.MeshStandardMaterial({ color: 0x228B22 })
 );
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// Skybox
-const skyTexture = new THREE.CanvasTexture(createSkyTexture());
-scene.background = skyTexture;
-
 // ========== CHARACTERS ==========
-const createHuman = (color, xPos) => {
+const createArcher = (color, xPos) => {
     const group = new THREE.Group();
     group.position.set(xPos, 0, 0);
     
-    // Body (torso)
+    // Torso
     const torso = new THREE.Mesh(
         new THREE.BoxGeometry(0.8, 1.5, 0.4),
         new THREE.MeshStandardMaterial({ color })
@@ -58,18 +55,6 @@ const createHuman = (color, xPos) => {
     head.position.y = 1.8;
     head.castShadow = true;
     group.add(head);
-    
-    // Legs
-    const legGeo = new THREE.BoxGeometry(0.3, 0.8, 0.3);
-    const leftLeg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color: 0x0000AA }));
-    leftLeg.position.set(-0.2, 0.4, 0);
-    leftLeg.castShadow = true;
-    group.add(leftLeg);
-    
-    const rightLeg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color: 0x0000AA }));
-    rightLeg.position.set(0.2, 0.4, 0);
-    rightLeg.castShadow = true;
-    group.add(rightLeg);
     
     // Arms
     const armGeo = new THREE.BoxGeometry(0.2, 0.8, 0.3);
@@ -113,13 +98,13 @@ const createBow = (xPos) => {
     return { group, string: bowString };
 };
 
-const player1 = createHuman(0xFF3333, -5);
-const player2 = createHuman(0x3333FF, 5);
+const player1 = createArcher(0xFF3333, -5);
+const player2 = createArcher(0x3333FF, 5);
 const bow1 = createBow(-4.5);
 const bow2 = createBow(4.5);
 scene.add(player1, player2, bow1.group, bow2.group);
 
-// ========== ARROWS ==========
+// ========== ARROW PHYSICS ==========
 const arrows = [];
 const createArrow = () => {
     const group = new THREE.Group();
@@ -150,7 +135,11 @@ const createArrow = () => {
     fletching.rotation.z = Math.PI/2;
     group.add(fletching);
     
-    return group;
+    return {
+        obj: group,
+        velocity: new THREE.Vector3(),
+        rotation: new THREE.Euler()
+    };
 };
 
 // ========== GAME LOGIC ==========
@@ -168,8 +157,6 @@ setCamera(currentPlayer);
 // Mouse controls
 document.addEventListener('mousedown', startDrawing);
 document.addEventListener('mouseup', releaseArrow);
-document.addEventListener('touchstart', startDrawing);
-document.addEventListener('touchend', releaseArrow);
 
 function setCamera(playerNum) {
     if (playerNum === 1) {
@@ -209,7 +196,7 @@ function animateBowString() {
         new THREE.Vector3(0, 0.5 - pullDistance, 0),
         new THREE.Vector3(0, -0.5 + pullDistance, 0)
     ]);
-    bow.string.geometry.verticesNeedUpdate = true;
+    bow.string.geometry.attributes.position.needsUpdate = true;
     
     requestAnimationFrame(animateBowString);
 }
@@ -227,6 +214,7 @@ function releaseArrow(e) {
         new THREE.Vector3(0, 0.5, 0),
         new THREE.Vector3(0, -0.5, 0)
     ]);
+    bow.string.geometry.attributes.position.needsUpdate = true;
     
     if (drawPower < 10) { // Minimum power
         canShoot = true;
@@ -239,27 +227,33 @@ function releaseArrow(e) {
 
 function shootArrow(power) {
     const arrow = createArrow();
-    const speed = 0.1 + (power / maxPower * 0.3);
+    const baseSpeed = 0.1 + (power / maxPower * 0.3);
     
     if (currentPlayer === 1) {
-        arrow.position.set(-4.5, 1.3, 0);
-        arrow.rotation.z = Math.PI/2;
+        arrow.obj.position.set(-4.5, 1.3, 0);
+        arrow.velocity.set(baseSpeed, ARROW_LIFT * power, 0); // Initial upward velocity
     } else {
-        arrow.position.set(4.5, 1.3, 0);
-        arrow.rotation.z = -Math.PI/2;
+        arrow.obj.position.set(4.5, 1.3, 0);
+        arrow.velocity.set(-baseSpeed, ARROW_LIFT * power, 0);
     }
     
-    scene.add(arrow);
-    arrows.push({
-        obj: arrow,
-        direction: currentPlayer === 1 ? 1 : -1,
-        speed: speed
-    });
+    scene.add(arrow.obj);
+    arrows.push(arrow);
 }
 
 function updateArrows() {
     arrows.forEach((arrow, index) => {
-        arrow.obj.position.x += arrow.direction * arrow.speed;
+        // Apply physics
+        arrow.velocity.y -= GRAVITY; // Gravity
+        arrow.velocity.multiplyScalar(1 - AIR_RESISTANCE); // Air resistance
+        
+        // Update position
+        arrow.obj.position.x += arrow.velocity.x;
+        arrow.obj.position.y += arrow.velocity.y;
+        
+        // Rotate arrow based on trajectory
+        const angle = Math.atan2(arrow.velocity.y, Math.abs(arrow.velocity.x));
+        arrow.obj.rotation.z = (arrow.velocity.x > 0 ? Math.PI/2 : -Math.PI/2) + angle;
         
         // Check hit
         const target = currentPlayer === 1 ? player2 : player1;
@@ -271,8 +265,8 @@ function updateArrows() {
             switchPlayer();
         }
         
-        // Check out of bounds
-        if (Math.abs(arrow.obj.position.x) > 15) {
+        // Check out of bounds or hit ground
+        if (Math.abs(arrow.obj.position.x) > 15 || arrow.obj.position.y < 0) {
             scene.remove(arrow.obj);
             arrows.splice(index, 1);
             switchPlayer();
@@ -289,60 +283,6 @@ function switchPlayer() {
     setTimeout(() => {
         canShoot = true;
     }, 1000);
-}
-
-// ========== UTILITIES ==========
-function createGrassTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    
-    // Base green
-    ctx.fillStyle = '#228B22';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Add grass blades
-    ctx.strokeStyle = '#2E8B57';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 1000; i++) {
-        const x = Math.random() * canvas.width;
-        const y = Math.random() * canvas.height;
-        const height = 2 + Math.random() * 5;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + (Math.random() - 0.5) * 2, y - height);
-        ctx.stroke();
-    }
-    
-    return canvas;
-}
-
-function createSkyTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    
-    // Gradient sky
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, '#1E90FF');
-    gradient.addColorStop(1, '#87CEEB');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Add some clouds
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    for (let i = 0; i < 10; i++) {
-        const x = Math.random() * canvas.width;
-        const y = Math.random() * canvas.height * 0.5;
-        const size = 20 + Math.random() * 30;
-        ctx.beginPath();
-        ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    
-    return canvas;
 }
 
 // ========== ANIMATION LOOP ==========
