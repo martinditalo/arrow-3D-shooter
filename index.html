@@ -5,16 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arrow 3D Shooter</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="turn-indicator">Player 1's Turn</div>
-        <div id="score-display">
-            <span id="player1-score">Player 1: 0</span>
-            <span id="player2-score">Player 2: 0</span>
-        </div>
-        <button id="shoot-button">Shoot Arrow</button>
+    <div id="turn-indicator">Player 1's Turn</div>
+    <div id="score-display">
+        <span id="player1-score">Player 1: 0</span>
+        <span id="player2-score">Player 2: 0</span>
     </div>
+    <button id="shoot-button">Shoot Arrow</button>
+    
+    <!-- Three.js will create a canvas here -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="app.js"></script>
 </body>

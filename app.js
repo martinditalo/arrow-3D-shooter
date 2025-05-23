@@ -10,7 +10,7 @@ camera.lookAt(0, 0, 0);
 // Renderer setup
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-document.getElementById('game-container').appendChild(renderer.domElement);
+document.body.appendChild(renderer.domElement);
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0x404040);
@@ -30,7 +30,10 @@ const arrowSpeed = 0.5;
 
 // Ground
 const groundGeometry = new THREE.PlaneGeometry(30, 30);
-const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22, side: THREE.DoubleSide });
+const groundMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0x228B22, 
+    side: THREE.DoubleSide 
+});
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
@@ -130,11 +133,11 @@ function shootArrow() {
     if (currentPlayer === 1) {
         arrow.position.set(-4, 1, 0);
         arrow.rotation.z = Math.PI / 2;
-        arrow.userData.direction = new THREE.Vector3(1, 0, 0);
+        arrow.userData = { direction: new THREE.Vector3(1, 0, 0) };
     } else {
         arrow.position.set(4, 1, 0);
         arrow.rotation.z = -Math.PI / 2;
-        arrow.userData.direction = new THREE.Vector3(-1, 0, 0);
+        arrow.userData = { direction: new THREE.Vector3(-1, 0, 0) };
     }
     
     scene.add(arrow);
