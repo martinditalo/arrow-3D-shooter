@@ -5,9 +5,39 @@
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #shoot-btn {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
+    <div id="ui">
+        <div>Player <span id="current-player">1</span>'s Turn</div>
+        <div>Player 1 Score: <span id="score1">0</span></div>
+        <div>Player 2 Score: <span id="score2">0</span></div>
+    </div>
+    <button id="shoot-btn">SHOOT ARROW</button>
+
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="app.js"></script>
 </body>
