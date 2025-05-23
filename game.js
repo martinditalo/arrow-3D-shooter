@@ -8,16 +8,17 @@ document.body.appendChild(renderer.domElement);
 // Set the camera position
 camera.position.z = 5;
 
-// Create player objects (simple cubes)
+// Create players and setup their positions
 const players = {
   1: createPlayer(0x0000ff, { x: -3, y: 1, z: 0 }), // Player 1 (Blue)
   2: createPlayer(0xff0000, { x: 3, y: 1, z: 0 }),  // Player 2 (Red)
 };
 
-// Create arrows array
-let arrows = [];
+let arrows = []; // Store arrows fired by players
+let currentTurn = 1; // Track whose turn it is (1 for Player 1, 2 for Player 2)
+let arrowSpeed = 0.1; // Speed at which arrows move
 
-// Function to create a player
+// Create a player (represented by a box)
 function createPlayer(color, position) {
   const geometry = new THREE.BoxGeometry(0.5, 1.5, 0.5);
   const material = new THREE.MeshBasicMaterial({ color: color });
@@ -27,7 +28,7 @@ function createPlayer(color, position) {
   return player;
 }
 
-// Function to create an arrow
+// Create an arrow
 function createArrow(owner) {
   const geometry = new THREE.CylinderGeometry(0.05, 0.05, 2);
   const material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
@@ -38,16 +39,18 @@ function createArrow(owner) {
   return arrow;
 }
 
-// Update arrows based on the owner
+// Update the position of arrows
 function updateArrows() {
   arrows.forEach((arrow, index) => {
     if (arrow.owner === 1) {
-      arrow.position.x += 0.1; // Move right for player 1
-    } else {
-      arrow.position.x -= 0.1; // Move left for player 2
+      // Player 1's arrow (moving towards Player 2)
+      arrow.position.x += arrowSpeed;
+    } else if (arrow.owner === 2) {
+      // Player 2's arrow (moving towards Player 1)
+      arrow.position.x -= arrowSpeed;
     }
 
-    // Remove arrows if they go off-screen
+    // Remove arrows that go off-screen
     if (arrow.position.x > 10 || arrow.position.x < -10) {
       scene.remove(arrow);
       arrows.splice(index, 1);
@@ -55,51 +58,39 @@ function updateArrows() {
   });
 }
 
-// Shoot an arrow and save it to localStorage
-function shootArrow(playerId) {
-  const player = players[playerId];
-  const arrow = createArrow(playerId);
-  arrow.position.set(player.position.x, player.position.y, player.position.z);
-
-  // Save the arrow event to localStorage
-  const arrowsData = JSON.parse(localStorage.getItem('arrows')) || [];
-  arrowsData.push({ owner: playerId, position: arrow.position });
-  localStorage.setItem('arrows', JSON.stringify(arrowsData));
+// Switch turns
+function switchTurn() {
+  currentTurn = currentTurn === 1 ? 2 : 1;
 }
 
-// Listen for keydown events to trigger shooting
+// Function to shoot an arrow
+function shootArrow(playerId) {
+  if (currentTurn === playerId) {
+    const player = players[playerId];
+    const arrow = createArrow(playerId);
+    arrow.position.set(player.position.x, player.position.y, player.position.z);
+
+    // Switch turns after shooting
+    switchTurn();
+  }
+}
+
+// Event listener for shooting arrows
 document.addEventListener('keydown', (event) => {
-  if (event.key === ' ') { // Spacebar to shoot for Player 1
+  if (event.key === ' ' && currentTurn === 1) {  // Spacebar for Player 1
     shootArrow(1);
   }
-  if (event.key === 'Enter') { // Enter to shoot for Player 2
+  if (event.key === 'Enter' && currentTurn === 2) {  // Enter for Player 2
     shootArrow(2);
   }
 });
-
-// Sync arrows across tabs by listening for changes in localStorage
-function syncArrows() {
-  const storedArrows = JSON.parse(localStorage.getItem('arrows')) || [];
-  
-  storedArrows.forEach((arrowData) => {
-    const existingArrow = arrows.find((arrow) => {
-      return arrow.owner === arrowData.owner && arrow.position.equals(new THREE.Vector3(arrowData.position.x, arrowData.position.y, arrowData.position.z));
-    });
-    
-    if (!existingArrow) {
-      const newArrow = createArrow(arrowData.owner);
-      newArrow.position.set(arrowData.position.x, arrowData.position.y, arrowData.position.z);
-    }
-  });
-}
 
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
 
-  // Update arrow positions and sync data
+  // Update arrow positions
   updateArrows();
-  syncArrows();
 
   // Render the scene
   renderer.render(scene, camera);
