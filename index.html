@@ -14,6 +14,7 @@
             background: rgba(0,0,0,0.5);
             padding: 10px;
             border-radius: 5px;
+            z-index: 100;
         }
         #shoot-btn {
             position: absolute;
@@ -27,6 +28,7 @@
             border-radius: 5px;
             font-size: 16px;
             cursor: pointer;
+            z-index: 100;
         }
     </style>
 </head>
@@ -39,6 +41,7 @@
     <button id="shoot-btn">SHOOT ARROW</button>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
