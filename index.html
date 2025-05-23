@@ -1,25 +1,43 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arrow 3D Shooter</title>
-    <link rel="stylesheet" href="style.css">
     <style>
-        body { margin: 0; }
+        body { margin: 0; overflow: hidden; }
         canvas { display: block; }
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            color: white;
+            padding: 10px;
+            font-family: Arial;
+            pointer-events: none;
+        }
+        #shoot-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body>
-    <div id="turn-indicator">Player 1's Turn</div>
-    <div id="score-display">
-        <span id="player1-score">Player 1: 0</span>
-        <span id="player2-score">Player 2: 0</span>
+    <div id="ui">
+        <div id="turn-indicator">Player 1's Turn</div>
+        <div>Player 1: <span id="player1-score">0</span></div>
+        <div>Player 2: <span id="player2-score">0</span></div>
     </div>
-    <button id="shoot-button">Shoot Arrow</button>
+    <button id="shoot-button">SHOOT</button>
     
-    <!-- Three.js will create a canvas here -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
