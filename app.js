@@ -1,19 +1,24 @@
-// Minimal working example
+// Test if Three.js is loaded
+console.log('Three.js version:', THREE.REVISION);
+
+// Basic scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87CEEB);
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/innerHeight, 0.1, 1000);
-camera.position.z = 15;
+scene.background = new THREE.Color(0x87CEEB); // Blue background
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.z = 5;
+
 const renderer = new THREE.WebGLRenderer();
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Add a test cube
-const cube = new THREE.Mesh(
-    new THREE.BoxGeometry(),
-    new THREE.MeshBasicMaterial({ color: 0xff0000 })
-);
+// Add test cube
+const geometry = new THREE.BoxGeometry();
+const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+const cube = new THREE.Mesh(geometry, material);
 scene.add(cube);
 
+// Animation loop
 function animate() {
     requestAnimationFrame(animate);
     cube.rotation.x += 0.01;
@@ -21,3 +26,5 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
+
+console.log('Scene initialized successfully');
